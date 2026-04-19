@@ -2,7 +2,7 @@ import motor.motor_asyncio
 
 from model import UserSessionData
 
-client = motor.motor_asyncio.AsyncIOMotorClient("mongodb://localhost:27017")
+client = motor.motor_asyncio.AsyncIOMotorClient("mongodb://mongo:qGwSIQWAErpDohpUkvuuVFFzQMIjkwsO@mongodb.railway.internal:27017")
 database = client.testSessions
 collection = database.userSession
 
