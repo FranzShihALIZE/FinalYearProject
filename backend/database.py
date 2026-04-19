@@ -4,12 +4,23 @@ import motor.motor_asyncio
 
 from model import UserSessionData
 
-# Railway: use Variables from the Mongo service (MONGO_URL) — falls back for local/dev.
-_mongo_uri = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
-if not _mongo_uri:
-    _mongo_uri = "mongodb://mongo:qGwSIQWAErpDohpUkvuuVFFzQMIjkwsO@mongodb.railway.internal:27017"
+# When MONGO_URL is not set on Railway (same as previous default).
+_RAILWAY_INTERNAL_FALLBACK = (
+    "mongodb://mongo:qGwSIQWAErpDohpUkvuuVFFzQMIjkwsO@mongodb.railway.internal:27017"
+)
 
-client = motor.motor_asyncio.AsyncIOMotorClient(_mongo_uri)
+
+def get_mongo_uri() -> str:
+    """Prefer env vars; else Railway internal on Railway; else local Mongo."""
+    explicit = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
+    if explicit:
+        return explicit
+    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"):
+        return _RAILWAY_INTERNAL_FALLBACK
+    return "mongodb://localhost:27017"
+
+
+client = motor.motor_asyncio.AsyncIOMotorClient(get_mongo_uri())
 database = client.testSessions
 collection = database.userSession
 

@@ -4,6 +4,10 @@ Seed MongoDB with sample user test sessions (random but biased toward a typical 
 Run from the backend folder (with MongoDB running):
     python sample_data.py
 
+Uses the same URI rules as database.py (MONGO_URL / MONGODB_URI, else localhost
+when not on Railway). On Railway, reference the Mongo service URL or rely on
+the internal fallback when RAILWAY_* env is set.
+
 Uses Motor (same as database.py), not pymongo.MongoClient directly.
 """
 
@@ -15,8 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# Match backend/database.py
-MONGO_URI = "mongodb://localhost:27017"
+from database import get_mongo_uri
 DB_NAME = "testSessions"
 COLLECTION_NAME = "userSession"
 
@@ -260,7 +263,7 @@ def build_document(doc_id: int) -> dict:
 
 async def main() -> None:
     random.seed()
-    client = AsyncIOMotorClient(MONGO_URI)
+    client = AsyncIOMotorClient(get_mongo_uri())
     try:
         coll = client[DB_NAME][COLLECTION_NAME]
 

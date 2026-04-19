@@ -6,8 +6,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# Match backend/database.py and sample_data.py
-MONGO_URI = "mongodb://localhost:27017"
+from database import get_mongo_uri
 DB_NAME = "testSessions"
 COLLECTION_NAME = "userSession"
 
@@ -68,7 +67,7 @@ def count_rejected_in_session(ui_changes: dict[str, Any] | None) -> int:
 
 
 async def run_analytics() -> None:
-    client = AsyncIOMotorClient(MONGO_URI)
+    client = AsyncIOMotorClient(get_mongo_uri())
     try:
         coll = client[DB_NAME][COLLECTION_NAME]
 
