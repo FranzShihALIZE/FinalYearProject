@@ -47,7 +47,12 @@ function RegisterPage({ onContinue, isSubmitting, errorMessage }) {
     <main className="register-main" aria-label="User test registration page">
       <section className="register-card">
         <h1 className="register-title">User Test Registration</h1>
-        <p className="register-lead">Enter participant details to start the adaptive UI test session.</p>
+        <div className="register-intro">
+          <p>This is a mock version of a software product. Explore the application and its features.</p>
+          <p>
+            Please analyse the application and note that the user interface will change based on your actions.
+          </p>
+        </div>
 
         <form className="register-form" onSubmit={handleSubmit}>
           <label className="register-field">

@@ -1019,9 +1019,19 @@ main,
   color: #1f2430;
 }
 
-.register-lead {
+.register-intro {
   margin: 0 0 20px;
   color: #5a6578;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.register-intro p {
+  margin: 0 0 10px;
+}
+
+.register-intro p:last-child {
+  margin-bottom: 0;
 }
 
 .register-form {
