@@ -1,0 +1,8 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Accidental Node installs (this API is FastAPI + Motor only)
+node_modules/
+package-lock.json
