@@ -7,6 +7,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from database import get_mongo_uri
+
 DB_NAME = "testSessions"
 COLLECTION_NAME = "userSession"
 
@@ -32,15 +33,22 @@ def age_bracket_label(age: int, max_age: int = 45) -> str:
     """5-year brackets from 18, capped at max_age (default 45)."""
     if age < 18 or age > max_age:
         return "other"
-    lo = ((age - 18) // 5) * 5 + 18
-    hi = min(lo + 4, max_age)
-    return f"{lo}-{hi}"
+    low = ((age - 18) // 5) * 5 + 18
+    high = min(low + 4, max_age)
+    return f"{low}-{high}"
 
 
-def fingerprint_final_versions(ui_changes: dict[str, Any] | None) -> tuple[str, ...] | None:
+def ordered_active_versions_tuple(ui_changes: dict[str, Any] | None) -> tuple[str, ...] | None:
+    """
+    One tuple describing the session's final UI: each entry is the `active` version for that
+    element, in the same order as UI_ELEMENT_KEYS. Used to count how many sessions ended in the
+    exact same combination of active versions across all five elements.
+
+    Returns None if data is missing or any tracked element has no valid `active` value.
+    """
     if not ui_changes:
         return None
-    parts = []
+    parts: list[str] = []
     for key in UI_ELEMENT_KEYS:
         block = ui_changes.get(key)
         if not isinstance(block, dict):
@@ -53,6 +61,7 @@ def fingerprint_final_versions(ui_changes: dict[str, Any] | None) -> tuple[str, 
 
 
 def count_rejected_in_session(ui_changes: dict[str, Any] | None) -> int:
+    """How many change_log rows have change_rejected == True, across all tracked elements."""
     if not ui_changes:
         return 0
     n = 0
@@ -66,48 +75,75 @@ def count_rejected_in_session(ui_changes: dict[str, Any] | None) -> int:
     return n
 
 
+def _as_ui_dict(raw: Any) -> dict[str, Any] | None:
+    return raw if isinstance(raw, dict) else None
+
+
+def _add_global_active_counts(ui: dict[str, Any], version_counts: dict[str, Counter[str]]) -> None:
+    """Count final `active` per element across all sessions with valid ui_changes."""
+    for key in UI_ELEMENT_KEYS:
+        block = ui.get(key)
+        if not isinstance(block, dict):
+            continue
+        av = block.get("active")
+        if av is not None:
+            version_counts[key][str(av)] += 1
+
+
+def _add_bracket_active_counts(
+    bracket: str,
+    ui: dict[str, Any],
+    by_bracket: dict[str, dict[str, Counter[str]]],
+) -> None:
+    """For one age bracket, count active version per element."""
+    for key in UI_ELEMENT_KEYS:
+        block = ui.get(key)
+        if isinstance(block, dict):
+            av = block.get("active")
+            if av is not None:
+                by_bracket[bracket][key][str(av)] += 1
+
+
 async def run_analytics() -> None:
+    """
+    Scan all user sessions and print:
+    1) per element: most/least common final active version
+    2) total rejected adaptation proposals (change_rejected in change_log)
+    3) per age bracket: most common active version per element
+    4) top 3 full-UI combinations (same ordered tuple of five active versions)
+    """
     client = AsyncIOMotorClient(get_mongo_uri())
     try:
         coll = client[DB_NAME][COLLECTION_NAME]
 
-        # Per element: version -> count (across sessions, final `active`)
+        # (1) and (2): filled when ui_changes is a dict
         version_counts: dict[str, Counter[str]] = {k: Counter() for k in UI_ELEMENT_KEYS}
         total_rejected = 0
-        # bracket label -> element id -> Counter(version)
+
+        # (3): age bracket -> element -> version counts
         bracket_element_versions: dict[str, dict[str, Counter[str]]] = defaultdict(_empty_counters_per_element)
-        fingerprint_counter: Counter[tuple[str, ...]] = Counter()
+
+        # (4): tuple of five active versions -> how many sessions match exactly
+        full_ui_combination_counts: Counter[tuple[str, ...]] = Counter()
 
         n_docs = 0
         projection = {"age": 1, "ui_changes": 1}
         async for doc in coll.find({}, projection):
             n_docs += 1
-            age = doc.get("age")
-            ui_changes = doc.get("ui_changes")
+            ui = _as_ui_dict(doc.get("ui_changes"))
 
+            if ui is not None:
+                total_rejected += count_rejected_in_session(ui)
+                _add_global_active_counts(ui, version_counts)
+                combo = ordered_active_versions_tuple(ui)
+                if combo is not None:
+                    full_ui_combination_counts[combo] += 1
+
+            age = doc.get("age")
             if isinstance(age, int):
                 bl = age_bracket_label(age)
-                if bl != "other":
-                    for key in UI_ELEMENT_KEYS:
-                        block = ui_changes.get(key) if isinstance(ui_changes, dict) else None
-                        if isinstance(block, dict):
-                            av = block.get("active")
-                            if av is not None:
-                                bracket_element_versions[bl][key][str(av)] += 1
-
-            if isinstance(ui_changes, dict):
-                total_rejected += count_rejected_in_session(ui_changes)
-                for key in UI_ELEMENT_KEYS:
-                    block = ui_changes.get(key)
-                    if not isinstance(block, dict):
-                        continue
-                    av = block.get("active")
-                    if av is not None:
-                        version_counts[key][str(av)] += 1
-
-            fp = fingerprint_final_versions(ui_changes if isinstance(ui_changes, dict) else None)
-            if fp is not None:
-                fingerprint_counter[fp] += 1
+                if bl != "other" and ui is not None:
+                    _add_bracket_active_counts(bl, ui, bracket_element_versions)
 
         print("=" * 72)
         print(f"User session analytics ({DB_NAME}.{COLLECTION_NAME})")
@@ -150,11 +186,11 @@ async def run_analytics() -> None:
                 print(f"    {key}: {top_v} (n={top_n})")
             print()
 
-        print("--- Top 3 combined final UI fingerprints (all tracked elements, in order) ---\n")
+        print("--- Top 3 most common full UI combinations (five active versions, element order below) ---\n")
         print("  Order:", " | ".join(UI_ELEMENT_KEYS))
-        for i, (fp, cnt) in enumerate(fingerprint_counter.most_common(3), start=1):
+        for i, (combo, cnt) in enumerate(full_ui_combination_counts.most_common(3), start=1):
             print(f"  #{i}  count={cnt}")
-            print("      " + " | ".join(fp))
+            print("      " + " | ".join(combo))
 
         print("\n" + "=" * 72)
     finally:
