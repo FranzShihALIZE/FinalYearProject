@@ -1,5 +1,6 @@
 /** API origin — single place to change for local dev. */
-export const API_BASE = 'http://localhost:8000';
+export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8000';
+
 
 /** Stable order for displaying stored UI adaptation state. */
 export const UI_ELEMENT_IDS_IN_ORDER = [
