@@ -1,8 +1,15 @@
+import os
+
 import motor.motor_asyncio
 
 from model import UserSessionData
 
-client = motor.motor_asyncio.AsyncIOMotorClient("mongodb://mongo:qGwSIQWAErpDohpUkvuuVFFzQMIjkwsO@mongodb.railway.internal:27017")
+# Railway: use Variables from the Mongo service (MONGO_URL) — falls back for local/dev.
+_mongo_uri = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
+if not _mongo_uri:
+    _mongo_uri = "mongodb://mongo:qGwSIQWAErpDohpUkvuuVFFzQMIjkwsO@mongodb.railway.internal:27017"
+
+client = motor.motor_asyncio.AsyncIOMotorClient(_mongo_uri)
 database = client.testSessions
 collection = database.userSession
 

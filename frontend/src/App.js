@@ -303,7 +303,10 @@ function App() {
         body: JSON.stringify(payload),
       });
       if (!createResponse.ok) {
-        throw new Error('Failed to create user test session.');
+        const errBody = await createResponse.text();
+        throw new Error(
+          `Session create failed (${createResponse.status}): ${errBody.slice(0, 300) || createResponse.statusText}`,
+        );
       }
       const sessionResponse = await fetch(`${API_BASE}/api/user_session/${id}`);
       const createdSession = sessionResponse.ok ? await sessionResponse.json() : payload;

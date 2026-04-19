@@ -18,6 +18,8 @@ origins = ["http://localhost:3000",
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    # Any Vercel deployment (production, previews, renamed projects)
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
