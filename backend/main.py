@@ -12,7 +12,8 @@ from model import AdaptationEvaluateRequest, AdaptationEvaluateResponse, UserSes
 
 app = FastAPI()
 
-origins = ["http://localhost:3000"]
+origins = ["http://localhost:3000",
+"https://final-year-project-nine-red.vercel.app"]
 
 app.add_middleware(
     CORSMiddleware,
